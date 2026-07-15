@@ -41,4 +41,4 @@ def render_chart(metric, history, forecast_points, anomaly) -> None:
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
         plot_bgcolor="#fff",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
