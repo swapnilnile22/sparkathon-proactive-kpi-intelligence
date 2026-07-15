@@ -19,10 +19,12 @@ All data in this prototype is **synthetic** — no real customer, tenant, or use
 
 ## How it works
 
-- **Data store** — KPI actuals live in a real **DynamoDB** table (`ddb_store.py`), seeded with
-  synthetic history by `seed_ddb.py`. The app reads actuals from DDB and writes computed
-  forecasts back, mirroring the production actuals → forecast pipeline. Falls back to the same
-  synthetic values in-memory when DDB isn't configured (e.g. local runs).
+- **Data store** — a real **DynamoDB forecast cache** (`dev-sparkathon-sem-rca-forecast`) that
+  mirrors the production `forecast-lambda` schema: PK `tenant_id`, SK `metric_name#forecast_date`,
+  plus `forecast_value`, `model_used`, `readiness_status`, `forecast_generated_at`, and a `ttl`.
+  `seed_ddb.py` populates 7-day synthetic forecasts for two demo tenants; the app reads forecasts
+  per tenant (`ddb_store.read_forecasts`). Falls back to computing forecasts locally when DDB
+  isn't configured (e.g. local runs).
 - **Forecasting** — 7-day forecasts computed with Holt-Winters (`statsmodels`) on that history
   (`forecast_data.py`).
 - **Early warning** — each forecast day is compared to the KPI target; a breach raises a

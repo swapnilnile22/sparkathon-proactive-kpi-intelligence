@@ -1,16 +1,26 @@
-"""DynamoDB access for the demo's KPI store (real table, synthetic data).
+"""DynamoDB access for the demo's forecast cache (real table, synthetic data).
 
-Table schema (single table): PK `metric` (S), SK `sk` (S).
-- Actuals:   sk = "ACTUAL#<YYYY-MM-DD>"
-- Forecasts: sk = "FORECAST#<YYYY-MM-DD>"
-`value` is stored as a Decimal string to avoid float precision issues.
-Credentials come from the environment / instance IAM role.
+Mirrors the production forecast-lambda table schema:
+  PK  tenant_id                       (S)
+  SK  metric_name#forecast_date       (S)   e.g. "CSAT#2026-07-16"
+  attrs: forecast_date, forecast_generated_at, forecast_value, metric_name,
+         model_used, readiness_status, ttl (TTL, epoch seconds)
+`forecast_value` is stored as a Decimal string. Credentials come from the
+environment / instance IAM role.
 """
 from __future__ import annotations
 
 import os
 from datetime import date
 from decimal import Decimal
+
+# Demo tenants (synthetic).
+TENANTS = [
+    "11eee7a2-a715-4010-9f7b-0242ac110003",
+    "11eee7a1-52e0-5ad0-97d1-0242ac110004",
+]
+
+SK = "metric_name#forecast_date"
 
 
 def _table():
@@ -21,29 +31,47 @@ def _table():
     return boto3.resource("dynamodb", region_name=region).Table(name)
 
 
-def read_actuals(metric_key: str, days: int = 14) -> list[tuple[date, float]]:
+def read_forecasts(tenant_id: str) -> dict[str, list[tuple[date, float]]]:
+    """Return {metric_name: [(forecast_date, forecast_value), ...]} for a tenant."""
     from boto3.dynamodb.conditions import Key
 
-    resp = _table().query(
-        KeyConditionExpression=Key("metric").eq(metric_key)
-        & Key("sk").begins_with("ACTUAL#"),
-        ScanIndexForward=True,
-    )
-    rows = [
-        (date.fromisoformat(item["sk"].split("#", 1)[1]), float(item["value"]))
-        for item in resp.get("Items", [])
-    ]
-    return rows[-days:]
+    resp = _table().query(KeyConditionExpression=Key("tenant_id").eq(tenant_id))
+    out: dict[str, list[tuple[date, float]]] = {}
+    for item in resp.get("Items", []):
+        metric = item.get("metric_name")
+        try:
+            d = date.fromisoformat(item["forecast_date"])
+            v = float(item["forecast_value"])
+        except (KeyError, ValueError):
+            continue
+        out.setdefault(metric, []).append((d, v))
+    for metric in out:
+        out[metric].sort()
+    return out
 
 
-def write_forecast(metric_key: str, points: list[tuple[date, float]]) -> None:
+def write_forecasts(
+    tenant_id: str,
+    metric_name: str,
+    points: list[tuple[date, float]],
+    generated_at: str,
+    ttl_epoch: int,
+    model_used: str = "holt_winters",
+    readiness_status: str = "ok",
+) -> None:
     table = _table()
     with table.batch_writer() as bw:
         for d, v in points:
             bw.put_item(
                 Item={
-                    "metric": metric_key,
-                    "sk": f"FORECAST#{d.isoformat()}",
-                    "value": Decimal(str(round(float(v), 3))),
+                    "tenant_id": tenant_id,
+                    SK: f"{metric_name}#{d.isoformat()}",
+                    "forecast_date": d.isoformat(),
+                    "forecast_generated_at": generated_at,
+                    "forecast_value": Decimal(str(round(float(v), 3))),
+                    "metric_name": metric_name,
+                    "model_used": model_used,
+                    "readiness_status": readiness_status,
+                    "ttl": ttl_epoch,
                 }
             )

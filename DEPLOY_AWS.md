@@ -11,11 +11,12 @@ instance IAM role (no static keys).
 > console → *Model access* if it isn't already.
 >
 > **DynamoDB:** the EC2 bootstrap runs `seed_ddb.py`, which **creates and seeds** the
-> `dev-sparkathon-sem-rca-forecast` table with synthetic KPI history (idempotent, `Owner`-tagged).
-> The app reads actuals from it and writes forecasts back; if DDB is unreachable it falls
-> back to the same synthetic values in-memory. No manual DynamoDB step is required — the
-> IAM policy in step 1 grants the needed permissions. (To change the tag owner/table name,
-> edit the `OWNER` / `DDB_TABLE` exports in `deploy/user_data.sh`.)
+> `dev-sparkathon-sem-rca-forecast` table (PK `tenant_id`, SK `metric_name#forecast_date`, TTL
+> enabled, `Owner`-tagged) with synthetic 7-day forecasts for two demo tenants. If a table with
+> an older key schema already exists it is deleted and recreated. The app reads forecasts per
+> tenant; if DDB is unreachable it falls back to computing them locally. No manual DynamoDB step
+> is required — the IAM policy in step 1 grants the needed permissions. (To change the tag
+> owner/table name, edit the `OWNER` / `DDB_TABLE` exports in `deploy/user_data.sh`.)
 
 ## 0. Set variables (fill these in)
 

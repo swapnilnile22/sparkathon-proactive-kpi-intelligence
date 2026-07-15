@@ -34,20 +34,9 @@ def _seeded_noise(seed_str: str, n: int) -> list[float]:
 
 
 def get_history(metric_key: str, days: int = 14) -> list[tuple[date, float]]:
-    """Return KPI history. Reads real actuals from DynamoDB when DDB_TABLE is
-    set; otherwise (and on any DDB error) uses the deterministic synthetic
-    generator. The seed script writes the same synthetic values into DDB, so
-    both paths produce identical numbers.
-    """
-    if os.environ.get("DDB_TABLE"):
-        try:
-            import ddb_store
-
-            rows = ddb_store.read_actuals(metric_key, days)
-            if rows:
-                return rows
-        except Exception:
-            pass
+    """Return synthetic KPI history (the chart's actual-line). The forecast
+    cache in DynamoDB holds forward-dated forecasts, not actuals — those are
+    read separately via ddb_store.read_forecasts()."""
     return _synthetic_history(metric_key, days)
 
 

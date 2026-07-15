@@ -34,12 +34,28 @@ st.caption(
     "before they impact customers."
 )
 
+# --- Load forecasts (from the DynamoDB forecast cache when configured) -------
+ddb_forecasts: dict[str, list] = {}
+data_source = "computed locally (synthetic)"
+tenant_id = None
+if os.environ.get("DDB_TABLE"):
+    try:
+        import ddb_store
+
+        tenant_id = st.sidebar.selectbox("Tenant", ddb_store.TENANTS)
+        ddb_forecasts = ddb_store.read_forecasts(tenant_id)
+        if ddb_forecasts:
+            data_source = f"DynamoDB forecast cache · tenant {tenant_id[:8]}…"
+    except Exception:
+        ddb_forecasts = {}
+st.caption(f"Forecast source: {data_source}")
+
 # --- Compute forecasts + anomalies for every metric -------------------------
 cards = []
 anomalies: dict[str, ew.PredictedAnomaly] = {}
 forecasts: dict[str, list] = {}
 for m in config.METRICS:
-    fc = fd.forecast(m.key, horizon=7)
+    fc = ddb_forecasts.get(m.key) or fd.forecast(m.key, horizon=7)
     forecasts[m.key] = fc
     hist = fd.get_history(m.key)
     anomaly = ew.evaluate(m, fc, ref)
@@ -72,18 +88,6 @@ def _investigation_dialog(metric_key: str) -> None:
     render_stream(inv.stream_investigation(anomaly, metric, delay=0.6))
 
 
-# Write the computed forecasts back to DynamoDB once per session (closes the
-# actuals -> forecast loop; lets judges inspect forecast rows in the table).
-if os.environ.get("DDB_TABLE") and not st.session_state.get("fc_written"):
-    try:
-        import ddb_store
-
-        for key, fc in forecasts.items():
-            ddb_store.write_forecast(key, fc)
-        st.session_state["fc_written"] = True
-    except Exception:
-        pass
-
 # --- Forecast board ---------------------------------------------------------
 st.subheader("7-Day Forecast Board")
 st.caption("Each card shows the current value, target, and the 7-day forecast trend.")
@@ -107,7 +111,7 @@ if hero_key:
     st.caption("💡 Click any point on the forecast line — or the card button — to investigate.")
 
     event = render_chart(
-        hero, fd.get_history(hero_key), fd.forecast(hero_key),
+        hero, fd.get_history(hero_key), forecasts[hero_key],
         hero_anom, key=f"chart_{hero_key}",
     )
 
