@@ -4,7 +4,7 @@ Idempotent — safe to run repeatedly (e.g. on every EC2 boot). Writes the same
 deterministic synthetic history the app's fallback uses, so DDB-backed and
 offline runs show identical numbers.
 
-Env: DDB_TABLE (default sparkathon-kpi-actuals), AWS_REGION (default us-east-1),
+Env: DDB_TABLE (default dev-sparkathon-sem-rca-forecast), AWS_REGION (default us-east-1),
      OWNER (tag value; required by the Sparkathon account policy).
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from decimal import Decimal
 import config
 import forecast_data as fd
 
-TABLE = os.environ.get("DDB_TABLE", "sparkathon-kpi-actuals")
+TABLE = os.environ.get("DDB_TABLE", "dev-sparkathon-sem-rca-forecast")
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 OWNER = os.environ.get("OWNER", "Sparkathon")
 

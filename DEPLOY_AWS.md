@@ -11,7 +11,7 @@ instance IAM role (no static keys).
 > console → *Model access* if it isn't already.
 >
 > **DynamoDB:** the EC2 bootstrap runs `seed_ddb.py`, which **creates and seeds** the
-> `sparkathon-kpi-actuals` table with synthetic KPI history (idempotent, `Owner`-tagged).
+> `dev-sparkathon-sem-rca-forecast` table with synthetic KPI history (idempotent, `Owner`-tagged).
 > The app reads actuals from it and writes forecasts back; if DDB is unreachable it falls
 > back to the same synthetic values in-memory. No manual DynamoDB step is required — the
 > IAM policy in step 1 grants the needed permissions. (To change the tag owner/table name,
@@ -131,9 +131,9 @@ Put on the Sparkathon submission page:
 - **git clone fails in bootstrap:** the subnet has no outbound egress — use a subnet with a
   NAT gateway, or bake the code into a custom AMI.
 - **DynamoDB not seeded / app uses fallback data:** check `journalctl -u streamlit` and re-run
-  `sudo DDB_TABLE=sparkathon-kpi-actuals OWNER="Swapnil Nile" python3.11 /opt/app/seed_ddb.py`.
+  `sudo DDB_TABLE=dev-sparkathon-sem-rca-forecast OWNER="Swapnil Nile" python3.11 /opt/app/seed_ddb.py`.
   The demo still works on the synthetic fallback if the table is missing. Inspect rows with
-  `aws dynamodb scan --table-name sparkathon-kpi-actuals --max-items 10`.
+  `aws dynamodb scan --table-name dev-sparkathon-sem-rca-forecast --max-items 10`.
 
 ## Teardown (account is short-lived, but to be tidy)
 
