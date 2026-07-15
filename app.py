@@ -9,11 +9,13 @@ import config
 import forecast_data as fd
 import early_warning as ew
 import investigation as inv
+from ui import style
 from ui.forecast_board import render_board
 from ui.forecast_chart import render_chart
 from ui.investigation_panel import render_stream
 
 st.set_page_config(page_title="Proactive KPI Intelligence", layout="wide")
+style.inject()
 
 ref = fd.reference_date()
 
@@ -27,11 +29,14 @@ def _format_current(metric_key: str, value: float) -> str:
 
 
 # --- Header -----------------------------------------------------------------
-st.title("Proactive KPI Intelligence")
-st.caption(
-    f"7-Day Early Warning · as of {ref.strftime('%A, %b %d, %Y')} · "
-    "forecasts contact-center KPIs and investigates predicted anomalies "
-    "before they impact customers."
+st.markdown(
+    f"""
+    <div class="pki-title">Proactive KPI Intelligence</div>
+    <div class="pki-sub">7-Day Early Warning · as of {ref.strftime('%A, %b %d, %Y')} ·
+    forecasts contact-center KPIs and investigates predicted anomalies before they
+    impact customers.</div>
+    """,
+    unsafe_allow_html=True,
 )
 
 # --- Load forecasts (from the DynamoDB forecast cache when configured) -------
@@ -73,19 +78,23 @@ for m in config.METRICS:
     )
 
 # --- Investigation popup ----------------------------------------------------
-@st.dialog("Agentic Investigation", width="large")
+@st.dialog("🔎 Agentic Investigation", width="large")
 def _investigation_dialog(metric_key: str) -> None:
     metric = config.metric_by_key(metric_key)
     anomaly = anomalies.get(metric_key)
     if not anomaly:
         st.info("No predicted anomaly for this metric.")
         return
-    st.markdown(f"### {metric.display_name}")
+    focus = st.session_state.get("focus")
+    subtitle = metric.display_name
+    if focus:
+        subtitle += f" · selected {focus['label']}"
+    st.markdown(f"### {subtitle}")
     st.caption(
         "An autonomous agent investigates the *predicted* anomaly across "
         "historical, correlated, and financial signals — before it happens."
     )
-    render_stream(inv.stream_investigation(anomaly, metric, delay=0.6))
+    render_stream(inv.stream_investigation(anomaly, metric, delay=0.6, focus=focus))
 
 
 # --- Forecast board ---------------------------------------------------------
@@ -93,6 +102,7 @@ st.subheader("7-Day Forecast Board")
 st.caption("Each card shows the current value, target, and the 7-day forecast trend.")
 clicked = render_board(cards)
 if clicked:
+    st.session_state["focus"] = None  # card button → whole-anomaly view
     st.session_state["open_inv"] = clicked
 
 # --- Hero metric detail (first at-risk metric) ------------------------------
@@ -115,13 +125,20 @@ if hero_key:
         hero_anom, key=f"chart_{hero_key}",
     )
 
-    # detect a clicked point; open the popup once per distinct selection
+    # detect a clicked point; capture WHICH point so the popup is specific to it
     sel = getattr(event, "selection", None)
     points = sel.get("points", []) if isinstance(sel, dict) else getattr(sel, "points", [])
     if points:
-        sel_id = f"{hero_key}:{points[0].get('point_index', points[0].get('x'))}"
+        p = points[0]
+        label = str(p.get("x", ""))
+        try:
+            value = float(p.get("y"))
+        except (TypeError, ValueError):
+            value = None
+        sel_id = f"{hero_key}:{label}"
         if st.session_state.get("last_sel") != sel_id:
             st.session_state["last_sel"] = sel_id
+            st.session_state["focus"] = {"label": label, "value": value} if value is not None else None
             st.session_state["open_inv"] = hero_key
 
 # --- Open the popup if a trigger fired this run -----------------------------

@@ -28,7 +28,17 @@ LAYER_ORDER = [
 # --------------------------------------------------------------------------- #
 # Prompt + parsing for the Bedrock path
 # --------------------------------------------------------------------------- #
-def _build_prompt(anomaly, metric) -> str:
+def _focus_line(focus) -> str:
+    if not focus:
+        return ""
+    return (
+        f"\n- OPERATOR SELECTED the forecast point for {focus['label']} "
+        f"(forecast value {focus['value']:.2f}). Open the predicted_brief by naming THIS "
+        f"specific day and value, then analyse the trajectory around it."
+    )
+
+
+def _build_prompt(anomaly, metric, focus=None) -> str:
     breach = anomaly.first_breach_date
     forecast_line = ", ".join(
         f"{d.strftime('%a %m-%d')}={v:.2f}" for d, v in anomaly.breach_days
@@ -41,7 +51,7 @@ SCENARIO (all synthetic demo data):
 - Metric: {metric.display_name} ({metric.key}), units "{metric.units}"
 - KPI target: {metric.kpi_target:g} ({metric.direction})
 - Predicted first breach: {breach.strftime('%A, %b %d')} ({anomaly.days_until} days from now)
-- Forecast values on breach days: {forecast_line}
+- Forecast values on breach days: {forecast_line}{_focus_line(focus)}
 
 Return ONLY a JSON object, no prose, no markdown fences, with this exact shape:
 {{"layers": [
@@ -89,27 +99,34 @@ def _validate_layers(obj: dict) -> list[dict]:
     return layers
 
 
-def generate_layers_bedrock(anomaly, metric) -> list[dict]:
+def generate_layers_bedrock(anomaly, metric, focus=None) -> list[dict]:
     """Call Bedrock and return validated layers. Raises on any failure."""
-    text = bedrock_client.converse_text(_build_prompt(anomaly, metric))
+    text = bedrock_client.converse_text(_build_prompt(anomaly, metric, focus))
     return _validate_layers(_extract_json(text))
 
 
 # --------------------------------------------------------------------------- #
 # Synthetic fallback (used if Bedrock is unavailable)
 # --------------------------------------------------------------------------- #
-def build_layers(anomaly, metric) -> list[dict]:
+def build_layers(anomaly, metric, focus=None) -> list[dict]:
     breach = anomaly.first_breach_date
     breach_str = breach.strftime("%A, %b %d")
     days = anomaly.days_until
     lowest = min(v for _, v in anomaly.breach_days)
+
+    focus_prefix = ""
+    if focus:
+        focus_prefix = (
+            f"**Selected point — {focus['label']}: {focus['value']:.2f}"
+            f"{metric.units}.** "
+        )
 
     return [
         {
             "name": "predicted_brief",
             "title": "Predicted Anomaly",
             "content": (
-                f"**{metric.display_name} is forecast to fall below target "
+                f"{focus_prefix}**{metric.display_name} is forecast to fall below target "
                 f"({metric.kpi_target:g}{metric.units}) on {breach_str}** — "
                 f"{days} days from now. Projected low of **{lowest:.2f}**. "
                 "No breach has occurred yet; this is an early warning with time to act."
@@ -203,19 +220,22 @@ def build_layers(anomaly, metric) -> list[dict]:
 # --------------------------------------------------------------------------- #
 # Streaming entry point
 # --------------------------------------------------------------------------- #
-def stream_investigation(anomaly, metric, delay: float = 0.6, use_bedrock: bool = True):
+def stream_investigation(
+    anomaly, metric, delay: float = 0.6, use_bedrock: bool = True, focus=None
+):
     """Yield the 7 layers one at a time. Uses Bedrock when available, else the
-    synthetic fallback. `source` is attached to the first layer for the UI badge.
+    synthetic fallback. `focus` (the clicked forecast point) tailors the brief.
+    `source` is attached to the first layer for the UI badge.
     """
     source = "fallback"
     if use_bedrock:
         try:
-            layers = generate_layers_bedrock(anomaly, metric)
+            layers = generate_layers_bedrock(anomaly, metric, focus)
             source = "bedrock"
         except Exception:
-            layers = build_layers(anomaly, metric)
+            layers = build_layers(anomaly, metric, focus)
     else:
-        layers = build_layers(anomaly, metric)
+        layers = build_layers(anomaly, metric, focus)
 
     for i, layer in enumerate(layers):
         if i == 0:

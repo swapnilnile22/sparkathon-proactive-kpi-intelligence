@@ -42,6 +42,14 @@ def test_stream_fallback_yields_all_layers():
     assert got[0]["source"] == "fallback"
 
 
+def test_focus_changes_the_brief():
+    m = metric_by_key("CSAT")
+    plain = build_layers(_anom(), m)[0]["content"]
+    focused = build_layers(_anom(), m, focus={"label": "Thu Jul 16", "value": 3.98})[0]["content"]
+    assert focused != plain
+    assert "Thu Jul 16" in focused
+
+
 def test_extract_json_strips_code_fences():
     raw = '```json\n{"layers": [{"name": "predicted_brief"}]}\n```'
     parsed = investigation._extract_json(raw)
