@@ -95,6 +95,10 @@ echo "AMI_ID=$AMI_ID"
 
 ## 4. Launch the instance (no public IP, Owner-tagged, user-data bootstrap)
 
+> ⚠️ **Account SCP requires ENCRYPTED EBS.** A service control policy denies `ec2:RunInstances`
+> with an unencrypted volume. You MUST pass `--block-device-mappings` with `Encrypted:true`
+> (below) or you get `UnauthorizedOperation ... explicit deny in a service control policy`.
+
 ```bash
 INSTANCE_ID=$(aws ec2 run-instances \
   --image-id "$AMI_ID" --instance-type t3.small \
@@ -103,10 +107,18 @@ INSTANCE_ID=$(aws ec2 run-instances \
   --iam-instance-profile Name=sparkathon-kpi-profile \
   ${KEY_NAME:+--key-name "$KEY_NAME"} \
   --user-data file://deploy/user_data.sh \
-  --tag-specifications "$TAGS" \
+  --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"Encrypted":true,"VolumeSize":8,"VolumeType":"gp3"}}]' \
+  --tag-specifications "$TAGS" 'ResourceType=volume,Tags=[{Key=Owner,Value=Your Name}]' \
   --query 'Instances[0].InstanceId' --output text)
 echo "INSTANCE_ID=$INSTANCE_ID"
 ```
+
+### Working values used for the live deploy (account 710894194408, us-east-1)
+- VPC `vpc-089712d808f095552` (VPC_Type_1) — subnets route `0.0.0.0/0` via Transit Gateway (VPN + egress)
+- Subnet `subnet-0b1ec53748560427e` (Subnet_A, us-east-1a)
+- Security group `sg-0e7b51a4961276047` (`:8501` from `10.0.0.0/8`)
+- IAM role `sparkathon-kpi-role` / instance profile `sparkathon-kpi-profile` (Bedrock + DynamoDB)
+- Instance `i-0a405b09b9d7fff84` → private IP **`10.233.240.11`** → `http://10.233.240.11:8501`
 
 ## 5. Get the private IP and open the app
 
