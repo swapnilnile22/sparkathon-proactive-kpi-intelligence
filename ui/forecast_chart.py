@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 
-def render_chart(metric, history, forecast_points, anomaly) -> None:
+def render_chart(metric, history, forecast_points, anomaly, key="forecast_chart"):
     hist_x = [d for d, _ in history]
     hist_y = [v for _, v in history]
     fc_x = [d for d, _ in forecast_points]
@@ -41,4 +41,9 @@ def render_chart(metric, history, forecast_points, anomaly) -> None:
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
         plot_bgcolor="#fff",
     )
-    st.plotly_chart(fig, width="stretch")
+    # on_select="rerun" makes points clickable; the returned event carries the
+    # selection so the caller can open the investigation popup.
+    return st.plotly_chart(
+        fig, width="stretch", on_select="rerun",
+        selection_mode="points", key=key,
+    )

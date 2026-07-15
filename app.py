@@ -52,14 +52,28 @@ for m in config.METRICS:
         }
     )
 
+# --- Investigation popup ----------------------------------------------------
+@st.dialog("Agentic Investigation", width="large")
+def _investigation_dialog(metric_key: str) -> None:
+    metric = config.metric_by_key(metric_key)
+    anomaly = anomalies.get(metric_key)
+    if not anomaly:
+        st.info("No predicted anomaly for this metric.")
+        return
+    st.markdown(f"### {metric.display_name}")
+    st.caption(
+        "An autonomous agent investigates the *predicted* anomaly across "
+        "historical, correlated, and financial signals — before it happens."
+    )
+    render_stream(inv.stream_investigation(anomaly, metric, delay=0.6))
+
+
 # --- Forecast board ---------------------------------------------------------
 st.subheader("7-Day Forecast Board")
 st.caption("Each card shows the current value, target, and the 7-day forecast trend.")
 clicked = render_board(cards)
-
-# persist selection across reruns
 if clicked:
-    st.session_state["investigate"] = clicked
+    st.session_state["open_inv"] = clicked
 
 # --- Hero metric detail (first at-risk metric) ------------------------------
 hero_key = next(iter(anomalies), None)
@@ -67,24 +81,29 @@ if hero_key:
     hero = config.metric_by_key(hero_key)
     hero_anom = anomalies[hero_key]
     st.subheader(f"Forecast detail — {hero.display_name}")
-    render_chart(hero, fd.get_history(hero_key), fd.forecast(hero_key), hero_anom)
 
     st.error(
         f"**Early warning:** {hero.display_name} is forecast to fall below "
         f"target ({hero.kpi_target:g}{hero.units}) on "
         f"{hero_anom.first_breach_date.strftime('%A, %b %d')} — "
-        f"{hero_anom.days_until} days out. Click **Investigate** on the card above."
+        f"{hero_anom.days_until} days out."
+    )
+    st.caption("💡 Click any point on the forecast line — or the card button — to investigate.")
+
+    event = render_chart(
+        hero, fd.get_history(hero_key), fd.forecast(hero_key),
+        hero_anom, key=f"chart_{hero_key}",
     )
 
-# --- Investigation ----------------------------------------------------------
-target_key = st.session_state.get("investigate")
-if target_key:
-    metric = config.metric_by_key(target_key)
-    anomaly = anomalies.get(target_key)
-    if anomaly:
-        st.subheader(f"Agentic Investigation — {metric.display_name}")
-        st.caption(
-            "An autonomous agent investigates the *predicted* anomaly across "
-            "historical, correlated, and financial signals — before it happens."
-        )
-        render_stream(inv.stream_investigation(anomaly, metric, delay=0.8))
+    # detect a clicked point; open the popup once per distinct selection
+    sel = getattr(event, "selection", None)
+    points = sel.get("points", []) if isinstance(sel, dict) else getattr(sel, "points", [])
+    if points:
+        sel_id = f"{hero_key}:{points[0].get('point_index', points[0].get('x'))}"
+        if st.session_state.get("last_sel") != sel_id:
+            st.session_state["last_sel"] = sel_id
+            st.session_state["open_inv"] = hero_key
+
+# --- Open the popup if a trigger fired this run -----------------------------
+if st.session_state.get("open_inv"):
+    _investigation_dialog(st.session_state.pop("open_inv"))
