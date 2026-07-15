@@ -57,7 +57,8 @@ synthetic fallback; with credentials + `AWS_REGION`/`BEDROCK_MODEL_ID` set it ca
 |---|---|---|
 | `AWS_REGION` | `us-east-1` | Bedrock + DynamoDB region |
 | `BEDROCK_MODEL_ID` | `anthropic.claude-3-haiku-20240307-v1:0` | Claude model — direct us-east-1 on-demand (cross-region `us.` profiles are blocked by the account's region lock) |
-| `DDB_TABLE` | *(unset → in-memory synthetic)* | DynamoDB table name for KPI actuals/forecasts |
+| `DDB_TABLE` | *(unset → in-memory synthetic)* | DynamoDB table name for the forecast cache |
+| `PUBLIC_DEMO` | *(unset)* | Set to `1` for public hosting with no AWS (e.g. Streamlit Cloud): skips the Bedrock call and uses the built-in brief. Leave unset on the AWS host for live Bedrock. |
 
 ## Tests
 

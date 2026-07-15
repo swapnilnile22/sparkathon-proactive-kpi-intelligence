@@ -88,9 +88,13 @@ def _investigation_dialog(metric_key: str) -> None:
         "An autonomous agent analyses this metric's 7-day forecast across "
         "historical, correlated, and financial signals."
     )
+    # PUBLIC_DEMO=1 (e.g. on Streamlit Cloud, no AWS) skips Bedrock and uses the
+    # built-in brief cleanly; on the AWS host it stays on (live Bedrock).
+    use_bedrock = not os.environ.get("PUBLIC_DEMO")
     render_stream(
         inv.stream_investigation(
-            metric, forecasts[metric_key], anomaly=anomaly, focus=focus, delay=0.6
+            metric, forecasts[metric_key], anomaly=anomaly, focus=focus,
+            delay=0.6, use_bedrock=use_bedrock,
         )
     )
 
