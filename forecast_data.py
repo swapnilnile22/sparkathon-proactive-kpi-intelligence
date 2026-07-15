@@ -14,8 +14,8 @@ from datetime import date, timedelta
 from config import metric_by_key
 
 # Fixed anchor so the demo is fully deterministic. Labelled as the demo's
-# "today"; the CSAT breach lands ~3 days out.
-_REFERENCE = date(2026, 7, 13)  # a Monday
+# "today"; the CSAT breach lands ~3 days out. Forecast covers the next 7 days.
+_REFERENCE = date(2026, 7, 16)
 
 
 def reference_date() -> date:

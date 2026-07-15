@@ -15,8 +15,7 @@ def _sparkline(values):
     return "".join(blocks[int((v - lo) / span * (len(blocks) - 1))] for v in values)
 
 
-def render_board(cards: list[dict]) -> str | None:
-    clicked = None
+def render_board(cards: list[dict]) -> None:
     cols = st.columns(len(cards))
     for col, card in zip(cols, cards):
         with col:
@@ -43,7 +42,3 @@ def render_board(cards: list[dict]) -> str | None:
                 """,
                 unsafe_allow_html=True,
             )
-            if at_risk:
-                if st.button("🔍 Investigate", key=f"inv_{card['metric']}", width="stretch"):
-                    clicked = anomaly.metric_key
-    return clicked

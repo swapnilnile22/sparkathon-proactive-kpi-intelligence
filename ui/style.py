@@ -45,11 +45,12 @@ html, body, [class*="css"], .stApp {{ font-family:'Geist', sans-serif; }}
 
 /* Hero title with gradient */
 .pki-title {{
-  font-size:2.1rem; font-weight:700; letter-spacing:-0.015em; line-height:1.1;
+  font-size:2.1rem; font-weight:700; letter-spacing:-0.015em; line-height:1.35;
+  padding:6px 0 2px 0; display:inline-block;
   background:{GRADIENT}; -webkit-background-clip:text; background-clip:text;
-  color:transparent; margin:0 0 4px 0;
+  -webkit-text-fill-color:transparent; color:transparent; margin:0;
 }}
-.pki-sub {{ color:#4B5563; font-size:0.95rem; margin-bottom:0.4rem; }}
+.pki-sub {{ color:#4B5563; font-size:0.95rem; margin:0 0 0.6rem 0; }}
 
 /* KPI cards */
 .pki-card {{

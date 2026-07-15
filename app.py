@@ -42,15 +42,14 @@ st.markdown(
 # --- Load forecasts (from the DynamoDB forecast cache when configured) -------
 ddb_forecasts: dict[str, list] = {}
 data_source = "computed locally (synthetic)"
-tenant_id = None
 if os.environ.get("DDB_TABLE"):
     try:
         import ddb_store
 
-        tenant_id = st.sidebar.selectbox("Tenant", ddb_store.TENANTS)
+        tenant_id = ddb_store.TENANTS[0]  # single demo tenant, no picker
         ddb_forecasts = ddb_store.read_forecasts(tenant_id)
         if ddb_forecasts:
-            data_source = f"DynamoDB forecast cache · tenant {tenant_id[:8]}…"
+            data_source = "DynamoDB forecast cache (us-east-1)"
     except Exception:
         ddb_forecasts = {}
 st.caption(f"Forecast source: {data_source}")
@@ -100,34 +99,47 @@ def _investigation_dialog(metric_key: str) -> None:
 # --- Forecast board ---------------------------------------------------------
 st.subheader("7-Day Forecast Board")
 st.caption("Each card shows the current value, target, and the 7-day forecast trend.")
-clicked = render_board(cards)
-if clicked:
-    st.session_state["focus"] = None  # card button → whole-anomaly view
-    st.session_state["open_inv"] = clicked
+render_board(cards)
 
-# --- Hero metric detail (first at-risk metric) ------------------------------
-hero_key = next(iter(anomalies), None)
-if hero_key:
-    hero = config.metric_by_key(hero_key)
-    hero_anom = anomalies[hero_key]
-    st.subheader(f"Forecast detail — {hero.display_name}")
+# --- Metric chart (any metric selectable) -----------------------------------
+metric_keys = [m.key for m in config.METRICS]
+hero_key = next(iter(anomalies), metric_keys[0])
+sel_key = st.radio(
+    "View forecast for metric",
+    metric_keys,
+    index=metric_keys.index(hero_key),
+    format_func=lambda k: config.metric_by_key(k).display_name,
+    horizontal=True,
+)
+sel = config.metric_by_key(sel_key)
+sel_anom = anomalies.get(sel_key)
 
+st.subheader(f"Forecast detail — {sel.display_name}")
+if sel_anom:
     st.error(
-        f"**Early warning:** {hero.display_name} is forecast to fall below "
-        f"target ({hero.kpi_target:g}{hero.units}) on "
-        f"{hero_anom.first_breach_date.strftime('%A, %b %d')} — "
-        f"{hero_anom.days_until} days out."
+        f"**Early warning:** {sel.display_name} is forecast to fall below "
+        f"target ({sel.kpi_target:g}{sel.units}) on "
+        f"{sel_anom.first_breach_date.strftime('%A, %b %d')} — "
+        f"{sel_anom.days_until} days out."
     )
-    st.caption("💡 Click any point on the forecast line — or the card button — to investigate.")
-
-    event = render_chart(
-        hero, fd.get_history(hero_key), forecasts[hero_key],
-        hero_anom, key=f"chart_{hero_key}",
+    st.caption("💡 Click any point on the forecast line to investigate that day.")
+else:
+    st.success(
+        f"{sel.display_name} is on track — the forecast stays within target all week."
     )
 
-    # detect a clicked point; capture WHICH point so the popup is specific to it
-    sel = getattr(event, "selection", None)
-    points = sel.get("points", []) if isinstance(sel, dict) else getattr(sel, "points", [])
+event = render_chart(
+    sel, fd.get_history(sel_key), forecasts[sel_key], sel_anom, key=f"chart_{sel_key}",
+)
+
+# detect a clicked point on an at-risk metric; capture WHICH point for the popup
+if sel_anom:
+    selection = getattr(event, "selection", None)
+    points = (
+        selection.get("points", [])
+        if isinstance(selection, dict)
+        else getattr(selection, "points", [])
+    )
     if points:
         p = points[0]
         label = str(p.get("x", ""))
@@ -135,11 +147,13 @@ if hero_key:
             value = float(p.get("y"))
         except (TypeError, ValueError):
             value = None
-        sel_id = f"{hero_key}:{label}"
+        sel_id = f"{sel_key}:{label}"
         if st.session_state.get("last_sel") != sel_id:
             st.session_state["last_sel"] = sel_id
-            st.session_state["focus"] = {"label": label, "value": value} if value is not None else None
-            st.session_state["open_inv"] = hero_key
+            st.session_state["focus"] = (
+                {"label": label, "value": value} if value is not None else None
+            )
+            st.session_state["open_inv"] = sel_key
 
 # --- Open the popup if a trigger fired this run -----------------------------
 if st.session_state.get("open_inv"):
