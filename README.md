@@ -4,28 +4,36 @@ An agentic AI system that **forecasts contact-center KPI anomalies up to 7 days 
 and **autonomously investigates their root cause** — moving operations managers from
 reactive firefighting to proactive intervention.
 
-## Live demo
-
-👉 **<LIVE_STREAMLIT_URL_HERE>** (open to all NiCE users, no login)
-
 ## What it shows
 
 1. A 7-day **forecast board** of contact-center KPIs (CSAT, Handle Time, Volume,
    First-Contact Resolution).
 2. An **early warning**: CSAT is forecast to breach its target ~3 days ahead, flagged
    red while the others stay green.
-3. An **agentic investigation** streamed layer by layer — historical context, correlated
-   signals, probable cause, projected financial impact, normalization forecast, and
-   prioritised **pre-emptive** actions.
+3. A **real agentic investigation** (Amazon Bedrock / Claude) streamed layer by layer —
+   historical context, correlated signals, probable cause, projected financial impact,
+   normalization forecast, and prioritised **pre-emptive** actions. Click any point on the
+   forecast line (or the card button) to launch it.
+
+All data in this prototype is **synthetic** — no real customer, tenant, or user data.
 
 ## How it works
 
-- **Forecasting** — 7-day forecasts computed with Holt-Winters (`statsmodels`).
+- **Forecasting** — 7-day forecasts computed with Holt-Winters (`statsmodels`) on synthetic
+  history (`forecast_data.py`).
 - **Early warning** — each forecast day is compared to the KPI target; a breach raises a
   predicted anomaly (`early_warning.py`).
-- **Investigation** — a streaming, layered intelligence brief (`investigation.py`).
+- **Investigation** — a real **Bedrock Converse** call produces the 7-layer brief
+  (`bedrock_client.py` + `investigation.py`); a hand-written brief is used automatically as a
+  fallback if Bedrock access isn't available.
 
-All data in this prototype is **synthetic** — no real customer, tenant, or user data.
+## Deployment (Sparkathon AWS account)
+
+Hosted on a single **EC2 instance in us-east-1**, private (no public IP), reachable over
+**FortiClient VPN** at the instance's private IP. Bedrock access is via the instance IAM
+role. Step-by-step CLI: see **[DEPLOY_AWS.md](DEPLOY_AWS.md)**.
+
+Live app (on Sparkathon VPN): `http://<PRIVATE_IP>:8501`
 
 ## Run locally
 
@@ -34,7 +42,15 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Then open http://localhost:8501.
+Then open http://localhost:8501. Without AWS credentials the investigation uses the
+synthetic fallback; with credentials + `AWS_REGION`/`BEDROCK_MODEL_ID` set it calls Bedrock.
+
+## Configuration
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `AWS_REGION` | `us-east-1` | Bedrock region |
+| `BEDROCK_MODEL_ID` | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Claude model (must have access enabled) |
 
 ## Tests
 

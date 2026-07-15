@@ -1,30 +1,42 @@
-"""Renders investigation layers as they stream in."""
+"""Renders investigation layers as they stream in.
+
+Defensive by design: the layer content may come from a live Bedrock model, so
+every data lookup uses .get() with fallbacks rather than hard indexing.
+"""
 from __future__ import annotations
 
 import streamlit as st
 
 
 def _render_layer(layer: dict) -> None:
-    st.markdown(f"#### {layer['title']}")
-    st.markdown(layer["content"])
+    if layer.get("source"):
+        badge = "⚡ Live Bedrock agent" if layer["source"] == "bedrock" else "Demo brief"
+        st.caption(f"Investigation source: {badge}")
 
-    data = layer.get("data", {})
-    if layer["name"] == "recommended_actions":
+    st.markdown(f"#### {layer.get('title', 'Layer')}")
+    st.markdown(layer.get("content", ""))
+
+    data = layer.get("data") or {}
+    name = layer.get("name")
+
+    if name == "recommended_actions":
         for a in data.get("actions", []):
             st.markdown(
-                f"**{a['priority']}. {a['action']}**  \n"
+                f"**{a.get('priority', '•')}. {a.get('action', '')}**  \n"
                 f"<span style='color:#6B7280;font-size:0.85rem;'>"
-                f"Impact: {a['impact']}</span>",
+                f"Impact: {a.get('impact', '')}</span>",
                 unsafe_allow_html=True,
             )
-    elif layer["name"] == "financial_impact":
-        st.metric(
-            "At-risk revenue (this week)",
-            f"${data['at_risk_low_usd']:,}–${data['at_risk_high_usd']:,}",
-        )
-    elif layer["name"] == "probable_cause":
-        st.metric("Confidence", f"{data['confidence_pct']}%")
-        st.caption("Ruled out: " + ", ".join(data.get("ruled_out", [])))
+    elif name == "financial_impact":
+        lo = data.get("at_risk_low_usd")
+        hi = data.get("at_risk_high_usd")
+        if lo is not None and hi is not None:
+            st.metric("At-risk revenue (this week)", f"${lo:,}–${hi:,}")
+    elif name == "probable_cause":
+        if data.get("confidence_pct") is not None:
+            st.metric("Confidence", f"{data['confidence_pct']}%")
+        if data.get("ruled_out"):
+            st.caption("Ruled out: " + ", ".join(data["ruled_out"]))
     st.divider()
 
 

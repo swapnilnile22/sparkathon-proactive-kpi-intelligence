@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from config import metric_by_key
 from early_warning import PredictedAnomaly
+import investigation
 from investigation import build_layers, LAYER_ORDER, stream_investigation
 
 REF = date(2026, 7, 13)
@@ -34,6 +35,23 @@ def test_narrative_is_future_framed():
     assert "forecast" in brief or "predicted" in brief
 
 
-def test_stream_yields_all_layers():
-    got = list(stream_investigation(_anom(), metric_by_key("CSAT"), delay=0))
+def test_stream_fallback_yields_all_layers():
+    # use_bedrock=False exercises the synthetic fallback with no AWS calls
+    got = list(stream_investigation(_anom(), metric_by_key("CSAT"), delay=0, use_bedrock=False))
     assert len(got) == 7
+    assert got[0]["source"] == "fallback"
+
+
+def test_extract_json_strips_code_fences():
+    raw = '```json\n{"layers": [{"name": "predicted_brief"}]}\n```'
+    parsed = investigation._extract_json(raw)
+    assert parsed["layers"][0]["name"] == "predicted_brief"
+
+
+def test_validate_layers_rejects_wrong_order():
+    bad = {"layers": [{"name": "financial_impact", "title": "x", "content": "y"}]}
+    try:
+        investigation._validate_layers(bad)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
