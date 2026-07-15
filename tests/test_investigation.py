@@ -4,7 +4,10 @@ from early_warning import PredictedAnomaly
 import investigation
 from investigation import build_layers, LAYER_ORDER, stream_investigation
 
-REF = date(2026, 7, 13)
+REF = date(2026, 7, 16)
+CSAT = metric_by_key("CSAT")
+# a synthetic 7-day forecast (declining through the target)
+FP = [(REF + timedelta(days=i), v) for i, v in enumerate([4.1, 4.06, 4.02, 3.98, 3.94, 3.90, 3.86])]
 
 
 def _anom():
@@ -13,41 +16,51 @@ def _anom():
         first_breach_date=REF + timedelta(days=3),
         days_until=3,
         severity=0.05,
-        breach_days=[(REF + timedelta(days=3), 3.9)],
+        breach_days=[(REF + timedelta(days=3), 3.98), (REF + timedelta(days=4), 3.94)],
     )
 
 
 def test_layers_cover_the_seven_names_in_order():
-    layers = build_layers(_anom(), metric_by_key("CSAT"))
+    layers = build_layers(CSAT, FP, anomaly=_anom())
     assert [l["name"] for l in layers] == LAYER_ORDER
     assert len(LAYER_ORDER) == 7
 
 
-def test_every_layer_has_content():
-    for l in build_layers(_anom(), metric_by_key("CSAT")):
-        assert l["title"]
-        assert l["content"]
+def test_every_layer_has_content_both_cases():
+    for anomaly in (_anom(), None):
+        for l in build_layers(CSAT, FP, anomaly=anomaly):
+            assert l["title"]
+            assert l["content"]
+
+
+def test_at_risk_vs_on_track_titles_differ():
+    at_risk = build_layers(CSAT, FP, anomaly=_anom())[0]["title"]
+    on_track = build_layers(CSAT, FP, anomaly=None)[0]["title"]
+    assert at_risk == "Predicted Anomaly"
+    assert on_track == "Forecast Summary"
 
 
 def test_narrative_is_future_framed():
-    layers = build_layers(_anom(), metric_by_key("CSAT"))
-    brief = layers[0]["content"].lower()
+    brief = build_layers(CSAT, FP, anomaly=_anom())[0]["content"].lower()
     assert "forecast" in brief or "predicted" in brief
 
 
 def test_stream_fallback_yields_all_layers():
-    # use_bedrock=False exercises the synthetic fallback with no AWS calls
-    got = list(stream_investigation(_anom(), metric_by_key("CSAT"), delay=0, use_bedrock=False))
+    got = list(stream_investigation(CSAT, FP, anomaly=_anom(), delay=0, use_bedrock=False))
     assert len(got) == 7
     assert got[0]["source"] == "fallback"
 
 
+def test_on_track_stream_works_without_anomaly():
+    got = list(stream_investigation(CSAT, FP, anomaly=None, delay=0, use_bedrock=False))
+    assert len(got) == 7
+
+
 def test_focus_changes_the_brief():
-    m = metric_by_key("CSAT")
-    plain = build_layers(_anom(), m)[0]["content"]
-    focused = build_layers(_anom(), m, focus={"label": "Thu Jul 16", "value": 3.98})[0]["content"]
+    plain = build_layers(CSAT, FP, anomaly=_anom())[0]["content"]
+    focused = build_layers(CSAT, FP, anomaly=_anom(), focus={"label": "Sat Jul 19", "value": 3.98})[0]["content"]
     assert focused != plain
-    assert "Thu Jul 16" in focused
+    assert "Sat Jul 19" in focused
 
 
 def test_extract_json_strips_code_fences():

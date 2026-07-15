@@ -81,19 +81,20 @@ for m in config.METRICS:
 def _investigation_dialog(metric_key: str) -> None:
     metric = config.metric_by_key(metric_key)
     anomaly = anomalies.get(metric_key)
-    if not anomaly:
-        st.info("No predicted anomaly for this metric.")
-        return
     focus = st.session_state.get("focus")
     subtitle = metric.display_name
     if focus:
         subtitle += f" · selected {focus['label']}"
     st.markdown(f"### {subtitle}")
     st.caption(
-        "An autonomous agent investigates the *predicted* anomaly across "
-        "historical, correlated, and financial signals — before it happens."
+        "An autonomous agent analyses this metric's 7-day forecast across "
+        "historical, correlated, and financial signals."
     )
-    render_stream(inv.stream_investigation(anomaly, metric, delay=0.6, focus=focus))
+    render_stream(
+        inv.stream_investigation(
+            metric, forecasts[metric_key], anomaly=anomaly, focus=focus, delay=0.6
+        )
+    )
 
 
 # --- Forecast board ---------------------------------------------------------
@@ -122,38 +123,37 @@ if sel_anom:
         f"{sel_anom.first_breach_date.strftime('%A, %b %d')} — "
         f"{sel_anom.days_until} days out."
     )
-    st.caption("💡 Click any point on the forecast line to investigate that day.")
 else:
     st.success(
         f"{sel.display_name} is on track — the forecast stays within target all week."
     )
+st.caption("💡 Click any point on the forecast line to investigate that day.")
 
 event = render_chart(
     sel, fd.get_history(sel_key), forecasts[sel_key], sel_anom, key=f"chart_{sel_key}",
 )
 
-# detect a clicked point on an at-risk metric; capture WHICH point for the popup
-if sel_anom:
-    selection = getattr(event, "selection", None)
-    points = (
-        selection.get("points", [])
-        if isinstance(selection, dict)
-        else getattr(selection, "points", [])
-    )
-    if points:
-        p = points[0]
-        label = str(p.get("x", ""))
-        try:
-            value = float(p.get("y"))
-        except (TypeError, ValueError):
-            value = None
-        sel_id = f"{sel_key}:{label}"
-        if st.session_state.get("last_sel") != sel_id:
-            st.session_state["last_sel"] = sel_id
-            st.session_state["focus"] = (
-                {"label": label, "value": value} if value is not None else None
-            )
-            st.session_state["open_inv"] = sel_key
+# detect a clicked point on ANY metric; capture WHICH point for the popup
+selection = getattr(event, "selection", None)
+points = (
+    selection.get("points", [])
+    if isinstance(selection, dict)
+    else getattr(selection, "points", [])
+)
+if points:
+    p = points[0]
+    label = str(p.get("x", ""))
+    try:
+        value = float(p.get("y"))
+    except (TypeError, ValueError):
+        value = None
+    sel_id = f"{sel_key}:{label}"
+    if st.session_state.get("last_sel") != sel_id:
+        st.session_state["last_sel"] = sel_id
+        st.session_state["focus"] = (
+            {"label": label, "value": value} if value is not None else None
+        )
+        st.session_state["open_inv"] = sel_key
 
 # --- Open the popup if a trigger fired this run -----------------------------
 if st.session_state.get("open_inv"):
