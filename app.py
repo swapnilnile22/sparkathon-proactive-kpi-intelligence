@@ -32,9 +32,8 @@ def _format_current(metric_key: str, value: float) -> str:
 st.markdown(
     f"""
     <div class="pki-title">Proactive KPI Intelligence</div>
-    <div class="pki-sub">7-Day Early Warning · as of {ref.strftime('%A, %b %d, %Y')} ·
-    forecasts contact-center KPIs and investigates predicted anomalies before they
-    impact customers.</div>
+    <div class="pki-sub">7-Day Early Warning · forecasts contact-center KPIs and
+    investigates predicted anomalies before they impact customers.</div>
     """,
     unsafe_allow_html=True,
 )
@@ -52,7 +51,6 @@ if os.environ.get("DDB_TABLE"):
             data_source = "DynamoDB forecast cache (us-east-1)"
     except Exception:
         ddb_forecasts = {}
-st.caption(f"Forecast source: {data_source}")
 
 # --- Compute forecasts + anomalies for every metric -------------------------
 cards = []
@@ -98,8 +96,8 @@ def _investigation_dialog(metric_key: str) -> None:
 
 
 # --- Forecast board ---------------------------------------------------------
-st.subheader("7-Day Forecast Board")
-st.caption("Each card shows the current value, target, and the 7-day forecast trend.")
+st.subheader("KPI Health & 7-Day Outlook")
+st.caption("Current value vs target, with the 7-day forecast trend for each KPI.")
 render_board(cards)
 
 # --- Metric chart (any metric selectable) -----------------------------------
@@ -115,7 +113,7 @@ sel_key = st.radio(
 sel = config.metric_by_key(sel_key)
 sel_anom = anomalies.get(sel_key)
 
-st.subheader(f"Forecast detail — {sel.display_name}")
+st.subheader(f"Recent trend & 7-day forecast — {sel.display_name}")
 if sel_anom:
     st.error(
         f"**Early warning:** {sel.display_name} is forecast to fall below "
