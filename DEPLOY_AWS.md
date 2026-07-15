@@ -9,6 +9,13 @@ instance IAM role (no static keys).
 > and **Bedrock model access enabled** in us-east-1 for the model in `BEDROCK_MODEL_ID`
 > (default `us.anthropic.claude-sonnet-4-5-20250929-v1:0`). Enable it in the Bedrock
 > console → *Model access* if it isn't already.
+>
+> **DynamoDB:** the EC2 bootstrap runs `seed_ddb.py`, which **creates and seeds** the
+> `sparkathon-kpi-actuals` table with synthetic KPI history (idempotent, `Owner`-tagged).
+> The app reads actuals from it and writes forecasts back; if DDB is unreachable it falls
+> back to the same synthetic values in-memory. No manual DynamoDB step is required — the
+> IAM policy in step 1 grants the needed permissions. (To change the tag owner/table name,
+> edit the `OWNER` / `DDB_TABLE` exports in `deploy/user_data.sh`.)
 
 ## 0. Set variables (fill these in)
 
@@ -34,14 +41,20 @@ aws iam create-role --role-name sparkathon-kpi-role \
   --assume-role-policy-document file:///tmp/trust.json \
   --tags Key=Owner,Value="$OWNER"
 
-cat > /tmp/bedrock.json <<'JSON'
-{"Version":"2012-10-17","Statement":[{"Effect":"Allow",
-"Action":["bedrock:InvokeModel","bedrock:InvokeModelWithResponseStream","bedrock:Converse","bedrock:ConverseStream"],
-"Resource":"*"}]}
+cat > /tmp/policy.json <<'JSON'
+{"Version":"2012-10-17","Statement":[
+  {"Effect":"Allow",
+   "Action":["bedrock:InvokeModel","bedrock:InvokeModelWithResponseStream","bedrock:Converse","bedrock:ConverseStream"],
+   "Resource":"*"},
+  {"Effect":"Allow",
+   "Action":["dynamodb:CreateTable","dynamodb:DescribeTable","dynamodb:TagResource",
+             "dynamodb:PutItem","dynamodb:BatchWriteItem","dynamodb:Query","dynamodb:GetItem"],
+   "Resource":"*"}
+]}
 JSON
 
 aws iam put-role-policy --role-name sparkathon-kpi-role \
-  --policy-name bedrock-invoke --policy-document file:///tmp/bedrock.json
+  --policy-name kpi-demo --policy-document file:///tmp/policy.json
 
 aws iam create-instance-profile --instance-profile-name sparkathon-kpi-profile
 aws iam add-role-to-instance-profile \
@@ -117,6 +130,10 @@ Put on the Sparkathon submission page:
   access / fix the policy; the app still works (it falls back automatically).
 - **git clone fails in bootstrap:** the subnet has no outbound egress — use a subnet with a
   NAT gateway, or bake the code into a custom AMI.
+- **DynamoDB not seeded / app uses fallback data:** check `journalctl -u streamlit` and re-run
+  `sudo DDB_TABLE=sparkathon-kpi-actuals OWNER="Swapnil Nile" python3.11 /opt/app/seed_ddb.py`.
+  The demo still works on the synthetic fallback if the table is missing. Inspect rows with
+  `aws dynamodb scan --table-name sparkathon-kpi-actuals --max-items 10`.
 
 ## Teardown (account is short-lived, but to be tidy)
 

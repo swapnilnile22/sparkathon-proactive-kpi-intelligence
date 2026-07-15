@@ -1,6 +1,8 @@
 """Proactive KPI Intelligence — Sparkathon prototype (single-page app)."""
 from __future__ import annotations
 
+import os
+
 import streamlit as st
 
 import config
@@ -35,8 +37,10 @@ st.caption(
 # --- Compute forecasts + anomalies for every metric -------------------------
 cards = []
 anomalies: dict[str, ew.PredictedAnomaly] = {}
+forecasts: dict[str, list] = {}
 for m in config.METRICS:
     fc = fd.forecast(m.key, horizon=7)
+    forecasts[m.key] = fc
     hist = fd.get_history(m.key)
     anomaly = ew.evaluate(m, fc, ref)
     if anomaly:
@@ -67,6 +71,18 @@ def _investigation_dialog(metric_key: str) -> None:
     )
     render_stream(inv.stream_investigation(anomaly, metric, delay=0.6))
 
+
+# Write the computed forecasts back to DynamoDB once per session (closes the
+# actuals -> forecast loop; lets judges inspect forecast rows in the table).
+if os.environ.get("DDB_TABLE") and not st.session_state.get("fc_written"):
+    try:
+        import ddb_store
+
+        for key, fc in forecasts.items():
+            ddb_store.write_forecast(key, fc)
+        st.session_state["fc_written"] = True
+    except Exception:
+        pass
 
 # --- Forecast board ---------------------------------------------------------
 st.subheader("7-Day Forecast Board")

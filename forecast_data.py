@@ -8,6 +8,7 @@ math, not proprietary methodology.
 from __future__ import annotations
 
 import math
+import os
 from datetime import date, timedelta
 
 from config import metric_by_key
@@ -33,6 +34,24 @@ def _seeded_noise(seed_str: str, n: int) -> list[float]:
 
 
 def get_history(metric_key: str, days: int = 14) -> list[tuple[date, float]]:
+    """Return KPI history. Reads real actuals from DynamoDB when DDB_TABLE is
+    set; otherwise (and on any DDB error) uses the deterministic synthetic
+    generator. The seed script writes the same synthetic values into DDB, so
+    both paths produce identical numbers.
+    """
+    if os.environ.get("DDB_TABLE"):
+        try:
+            import ddb_store
+
+            rows = ddb_store.read_actuals(metric_key, days)
+            if rows:
+                return rows
+        except Exception:
+            pass
+    return _synthetic_history(metric_key, days)
+
+
+def _synthetic_history(metric_key: str, days: int = 14) -> list[tuple[date, float]]:
     m = metric_by_key(metric_key)
     start = _REFERENCE - timedelta(days=days)
     noise = _seeded_noise(metric_key, days)

@@ -19,8 +19,12 @@ All data in this prototype is **synthetic** — no real customer, tenant, or use
 
 ## How it works
 
-- **Forecasting** — 7-day forecasts computed with Holt-Winters (`statsmodels`) on synthetic
-  history (`forecast_data.py`).
+- **Data store** — KPI actuals live in a real **DynamoDB** table (`ddb_store.py`), seeded with
+  synthetic history by `seed_ddb.py`. The app reads actuals from DDB and writes computed
+  forecasts back, mirroring the production actuals → forecast pipeline. Falls back to the same
+  synthetic values in-memory when DDB isn't configured (e.g. local runs).
+- **Forecasting** — 7-day forecasts computed with Holt-Winters (`statsmodels`) on that history
+  (`forecast_data.py`).
 - **Early warning** — each forecast day is compared to the KPI target; a breach raises a
   predicted anomaly (`early_warning.py`).
 - **Investigation** — a real **Bedrock Converse** call produces the 7-layer brief
@@ -49,8 +53,9 @@ synthetic fallback; with credentials + `AWS_REGION`/`BEDROCK_MODEL_ID` set it ca
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `AWS_REGION` | `us-east-1` | Bedrock region |
+| `AWS_REGION` | `us-east-1` | Bedrock + DynamoDB region |
 | `BEDROCK_MODEL_ID` | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Claude model (must have access enabled) |
+| `DDB_TABLE` | *(unset → in-memory synthetic)* | DynamoDB table name for KPI actuals/forecasts |
 
 ## Tests
 

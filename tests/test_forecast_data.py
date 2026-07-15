@@ -36,3 +36,13 @@ def test_forecast_builds_for_every_metric():
     for m in METRICS:
         fc = fd.forecast(m.key, horizon=7)
         assert len(fc) == 7
+
+
+def test_get_history_falls_back_to_synthetic_without_ddb(monkeypatch):
+    monkeypatch.delenv("DDB_TABLE", raising=False)
+    assert fd.get_history("CSAT") == fd._synthetic_history("CSAT")
+
+
+def test_ddb_and_seed_modules_import_cleanly():
+    import ddb_store  # noqa: F401
+    import seed_ddb  # noqa: F401

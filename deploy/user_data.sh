@@ -12,6 +12,12 @@ git clone https://github.com/swapnilnile22/sparkathon-proactive-kpi-intelligence
 cd app
 python3.11 -m pip install -r requirements.txt
 
+# Create + seed the DynamoDB KPI table with synthetic actuals (idempotent).
+export AWS_REGION=us-east-1
+export DDB_TABLE=sparkathon-kpi-actuals
+export OWNER="Swapnil Nile"
+python3.11 seed_ddb.py || echo "seed failed (app falls back to synthetic history)"
+
 cat >/etc/systemd/system/streamlit.service <<'UNIT'
 [Unit]
 Description=Proactive KPI Intelligence (Streamlit)
@@ -22,6 +28,7 @@ Type=simple
 WorkingDirectory=/opt/app
 Environment=AWS_REGION=us-east-1
 Environment=BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0
+Environment=DDB_TABLE=sparkathon-kpi-actuals
 ExecStart=/usr/bin/python3.11 -m streamlit run app.py \
   --server.port=8501 --server.address=0.0.0.0 --server.headless=true
 Restart=always
