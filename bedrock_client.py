@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import os
 
-# Cross-region inference profile ID. Override via the BEDROCK_MODEL_ID env var
-# (e.g. "anthropic.claude-opus-4-8" for higher quality). Whichever ID is used
-# must have model access enabled in the account, in us-east-1.
-DEFAULT_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+# Direct us-east-1 on-demand model ID. The Sparkathon account is locked to
+# us-east-1, so cross-region inference profiles (the "us.anthropic..." IDs) are
+# denied — they fan out to us-east-2/us-west-2. Claude 3 Haiku is invokable
+# on-demand directly in us-east-1. Override via BEDROCK_MODEL_ID if a newer
+# model becomes directly invokable in-region.
+DEFAULT_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
 
 
 def converse_text(prompt: str, max_tokens: int = 2000) -> str:

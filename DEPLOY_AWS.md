@@ -5,10 +5,13 @@ Exact CLI to launch the demo on a single EC2 instance. All resources are tagged
 over **FortiClient VPN** at the instance's private IP. Bedrock access comes from the
 instance IAM role (no static keys).
 
-> Prereqs: AWS CLI authenticated to the Sparkathon account via the Azure/AWS SAML SSO,
-> and **Bedrock model access enabled** in us-east-1 for the model in `BEDROCK_MODEL_ID`
-> (default `us.anthropic.claude-sonnet-4-5-20250929-v1:0`). Enable it in the Bedrock
-> console → *Model access* if it isn't already.
+> Prereqs: AWS CLI authenticated to the Sparkathon account via the Azure/AWS SAML SSO.
+> **Bedrock model:** `BEDROCK_MODEL_ID` defaults to `anthropic.claude-3-haiku-20240307-v1:0`,
+> which is invokable **directly on-demand in us-east-1** (verified working with the
+> `Spark_users` role). Do NOT use a cross-region `us.anthropic...` inference profile — the
+> account is region-locked to us-east-1 and those profiles fan out to us-east-2/us-west-2 and
+> get AccessDenied. If the investigation ever shows "Demo brief" instead of "Live Bedrock
+> agent", the model call failed and it fell back — check the instance's Bedrock permissions.
 >
 > **DynamoDB:** the EC2 bootstrap runs `seed_ddb.py`, which **creates and seeds** the
 > `dev-sparkathon-sem-rca-forecast` table (PK `tenant_id`, SK `metric_name#forecast_date`, TTL

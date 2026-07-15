@@ -27,7 +27,7 @@ After=network.target
 Type=simple
 WorkingDirectory=/opt/app
 Environment=AWS_REGION=us-east-1
-Environment=BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0
+Environment=BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
 Environment=DDB_TABLE=dev-sparkathon-sem-rca-forecast
 ExecStart=/usr/bin/python3.11 -m streamlit run app.py \
   --server.port=8501 --server.address=0.0.0.0 --server.headless=true
